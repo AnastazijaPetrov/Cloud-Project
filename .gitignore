@@ -1,0 +1,28 @@
+*.swp
+__pycache__
+.pytest_cache
+.venv
+*.egg-info
+
+# CDK asset staging directory
+.cdk.staging
+cdk.out
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CDK
+cdk.context.json
+
+# Python
+*.pyc
+*.pyo
+
+# Environment variables (ako kasnije dodamo .env fajlove)
+.env
+.env.local
