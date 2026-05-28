@@ -7,7 +7,7 @@ s3 = boto3.client('s3')
 BUCKET_NAME = os.environ['BRONZE_BUCKET']
 
 def lambda_handler(event, context):
-    print("Lambda started")
+    print(f"Twitter Lambda triggered. Target bucket: {BUCKET_NAME}")
 
     with open("data/twitter_data.json", "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -24,7 +24,6 @@ def lambda_handler(event, context):
     )
 
     print(f"Uploaded {len(data)} records to {BUCKET_NAME}/{key}")
-    print("Lambda finished")
 
     return {
         "statusCode": 200,
@@ -34,8 +33,3 @@ def lambda_handler(event, context):
             "s3_key": key
         })
     }
-
-if __name__ == "__main__":
-    print("STARTING LOCAL TEST")
-    lambda_handler(None, None)
-    print("DONE")
