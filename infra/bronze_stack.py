@@ -25,7 +25,7 @@ class BronzeStack(Stack):
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # ===== HackerNews Lambda =====
+        # hackernews lambda
         hn_role = iam.Role(
             self, "HackerNewsLambdaRole",
             assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
@@ -36,7 +36,6 @@ class BronzeStack(Stack):
             ],
         )
 
-        # Least privilege: dozvoli upis SAMO u hackernews/ prefiks bronze bucket-a
         bronze_bucket.grant_put(hn_role, objects_key_pattern="hackernews/*")
 
         hn_lambda = _lambda.Function(
@@ -66,7 +65,7 @@ class BronzeStack(Stack):
             allow_public_subnet=True,
         )
 
-        # ===== Twitter Lambda =====
+        # twitter lambda
         twitter_role = iam.Role(
             self, "TwitterLambdaRole",
             assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
@@ -77,7 +76,6 @@ class BronzeStack(Stack):
             ],
         )
 
-        # Least privilege: dozvoli upis SAMO u twitter/ prefiks bronze bucket-a
         bronze_bucket.grant_put(twitter_role, objects_key_pattern="twitter/*")
 
         twitter_lambda = _lambda.Function(
@@ -107,7 +105,7 @@ class BronzeStack(Stack):
             allow_public_subnet=True,
         )
 
-        # ===== EventBridge Cron - svaki dan u 2:00 UTC =====
+        # Event bridge cron at 02:00 utc used by both lambdas
         daily_schedule = events.Rule(
             self, "DailyIngestSchedule",
             rule_name="daily-bronze-ingest",

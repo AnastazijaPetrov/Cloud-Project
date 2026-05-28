@@ -10,7 +10,7 @@ class NetworkStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # VPC sa 2 public subnet-a u 2 različite AZ-a
+        # vpc with 2 public subnets in 2 different az
         self.vpc = ec2.Vpc(
             self, "DataLakehouseVpc",
             vpc_name="data-lakehouse-vpc",
@@ -26,13 +26,12 @@ class NetworkStack(Stack):
             ],
         )
 
-        # VPC Gateway Endpoint za S3 (besplatan, privatan put do S3)
         self.vpc.add_gateway_endpoint(
             "S3Endpoint",
             service=ec2.GatewayVpcEndpointAwsService.S3,
         )
 
-        # Security grupa za Lambda funkcije
+        # lambda security groups
         self.lambda_sg = ec2.SecurityGroup(
             self, "LambdaSecurityGroup",
             vpc=self.vpc,
@@ -41,7 +40,7 @@ class NetworkStack(Stack):
             allow_all_outbound=True,
         )
 
-        # Security grupa za EC2 (Superset + PostgreSQL)
+        # ec2 security groups
         self.ec2_sg = ec2.SecurityGroup(
             self, "Ec2SecurityGroup",
             vpc=self.vpc,
@@ -50,21 +49,22 @@ class NetworkStack(Stack):
             allow_all_outbound=True,
         )
 
-        # EC2 prihvata SSH samo sa konkretne IP adrese (zameni kasnije)
+        # ec2 setup:
+
+        # env with ip needed first
         # self.ec2_sg.add_ingress_rule(
-        #     peer=ec2.Peer.ipv4("TVOJA_IP/32"),
+        #     peer=ec2.Peer.ipv4("myip/32"),
         #     connection=ec2.Port.tcp(22),
         #     description="SSH pristup samo sa moje IP",
         # )
 
-        # EC2 prihvata Superset (8088) sa interneta - za sada otvoreno za tim
+        # superset needed first
         # self.ec2_sg.add_ingress_rule(
         #     peer=ec2.Peer.any_ipv4(),
         #     connection=ec2.Port.tcp(8088),
         #     description="Superset web UI",
         # )
 
-        # EC2 prihvata PostgreSQL (5432) samo od Lambda funkcija
         self.ec2_sg.add_ingress_rule(
             peer=self.lambda_sg,
             connection=ec2.Port.tcp(5432),

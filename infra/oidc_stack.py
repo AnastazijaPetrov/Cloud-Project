@@ -21,15 +21,12 @@ class OidcStack(Stack):
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # OIDC provider - jednom po AWS nalogu
         github_provider = iam.OpenIdConnectProvider(
             self, "GitHubOidcProvider",
             url="https://token.actions.githubusercontent.com",
             client_ids=["sts.amazonaws.com"],
         )
 
-        # Trust policy: dozvoli GitHub-u da preuzme ovaj role
-        # samo za odredjen repo (bilo koji branch ili PR)
         github_principal = iam.OpenIdConnectPrincipal(
             github_provider,
             conditions={
@@ -42,7 +39,6 @@ class OidcStack(Stack):
             },
         )
 
-        # IAM role koji GitHub Actions preuzima
         self.github_actions_role = iam.Role(
             self, "GitHubActionsRole",
             role_name="github-actions-deploy-role",
@@ -51,9 +47,6 @@ class OidcStack(Stack):
             max_session_duration=Stack.of(self).node.try_get_context("session_duration") or None,
         )
 
-        # Permisije za CDK deploy
-        # AdministratorAccess je preveliki obim, ali za studentski projekat je ok
-        # U produkciji bi se davale samo specificne CloudFormation permisije
         self.github_actions_role.add_managed_policy(
             iam.ManagedPolicy.from_aws_managed_policy_name("AdministratorAccess")
         )
