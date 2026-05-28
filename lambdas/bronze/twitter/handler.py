@@ -14,7 +14,7 @@ def lambda_handler(event, context):
 
     now = datetime.utcnow()
 
-    key = f"twitter/bronze/x/year={now.year}/month={now.month:02d}/day={now.day:02d}/twitter.json"
+    key = f"twitter/bronze/year={now.year}/month={now.month:02d}/day={now.day:02d}/twitter.json"
 
     s3.put_object(
         Bucket=BUCKET_NAME,
