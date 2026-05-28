@@ -13,10 +13,6 @@ def lambda_handler(event, context):
     """
     print(f"Twitter Lambda triggered. Target bucket: {BUCKET_NAME}")
     
-    # TODO: kolega 2 implementira
-    # 1. Preuzeti / pročitati Twitter dataset
-    # 2. Upisati u S3 bucket pod prefiksom twitter/year=.../month=.../day=.../
-    
     return {
         'statusCode': 200,
         'body': json.dumps({'message': 'Twitter ingest placeholder'})
