@@ -1,7 +1,10 @@
+import os
+import json
 import boto3
 from datetime import datetime
 
 s3 = boto3.client('s3')
+BUCKET_NAME = os.environ['BRONZE_BUCKET']
 
 def lambda_handler(event, context):
     print(f"Twitter Lambda triggered. Target bucket: {BUCKET_NAME}")
