@@ -20,7 +20,7 @@ def lambda_handler(event, context):
     now = datetime.utcnow()
 
     key = (
-        f"bronze/hackernews/"
+        f"hackernews/"
         f"year={now.year}/month={now.month:02d}/day={now.day:02d}/hn.json"
     )
 
