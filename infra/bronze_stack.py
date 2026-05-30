@@ -36,7 +36,7 @@ class BronzeStack(Stack):
             ],
         )
 
-        bronze_bucket.grant_put(hn_role, objects_key_pattern="hackernews/*")
+        bronze_bucket.grant_put(hn_role, objects_key_pattern="bronze/hackernews/*")
 
         hn_lambda = _lambda.Function(
             self, "HackerNewsIngestLambda",
