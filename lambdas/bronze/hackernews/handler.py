@@ -1,7 +1,7 @@
 import os
 import json
 import boto3
-from datetime import datetime
+from datetime import datetime, timedelta
 
 s3 = boto3.client("s3")
 
@@ -11,7 +11,10 @@ def lambda_handler(event, context):
 
     print("HackerNews bronze ingestion started")
 
-    with open("data/hn_data.json", "r", encoding="utf-8") as f:
+    yesterday = datetime.utcnow() - timedelta(days=1)
+    filename = f"hn_{yesterday.strftime('%Y%m%d')}.json"
+
+    with open(f"data/{filename}", "r") as f:
         data = json.load(f)
 
     now = datetime.utcnow()
