@@ -1,30 +1,18 @@
 import os
 import json
 import boto3
-import requests
 from datetime import datetime
 
 s3 = boto3.client("s3")
-BUCKET = os.environ["BRONZE_BUCKET"]
+
+BUCKET_NAME = os.environ["BRONZE_BUCKET"]
 
 def lambda_handler(event, context):
 
-    print("HackerNews ingestion started")
+    print("HackerNews bronze ingestion started")
 
-    top_ids = requests.get(
-        "https://hacker-news.firebaseio.com/v0/topstories.json"
-    ).json()
-
-    data = []
-
-    for story_id in top_ids[:100]:
-
-        item = requests.get(
-            f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
-        ).json()
-
-        if item:
-            data.append(item)
+    with open("data/hn_data.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
 
     now = datetime.utcnow()
 
@@ -34,7 +22,7 @@ def lambda_handler(event, context):
     )
 
     s3.put_object(
-        Bucket=BUCKET,
+        Bucket=BUCKET_NAME,
         Key=key,
         Body=json.dumps(data),
         ContentType="application/json"
