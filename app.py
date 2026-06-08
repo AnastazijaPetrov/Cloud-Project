@@ -6,6 +6,7 @@ from infra.storage_stack import StorageStack
 from infra.network_stack import NetworkStack
 from infra.bronze_stack import BronzeStack
 from infra.oidc_stack import OidcStack
+from infra.silver_stack import SilverStack
 
 app = cdk.App()
 
@@ -32,6 +33,15 @@ bronze = BronzeStack(
     vpc=network.vpc,
     lambda_sg=network.lambda_sg,
     bronze_bucket=storage.bronze_bucket,
+    env=env,
+)
+
+silver = SilverStack(
+    app, "SilverStack",
+    vpc=network.vpc,
+    lambda_sg=network.lambda_sg,
+    bronze_bucket=storage.bronze_bucket,
+    silver_bucket=storage.silver_bucket,
     env=env,
 )
 
