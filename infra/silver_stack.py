@@ -46,7 +46,7 @@ class SilverStack(Stack):
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="handler.lambda_handler",
             code=_lambda.Code.from_asset(
-                "lambdas/silver/hackernews",
+                "lambdas/silver/normalize_hackernews",
                 bundling=BundlingOptions(
                     image=_lambda.Runtime.PYTHON_3_11.bundling_image,
                     command=[
@@ -74,7 +74,7 @@ class SilverStack(Stack):
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="handler.lambda_handler",
             code=_lambda.Code.from_asset(
-                "lambdas/silver/twitter",
+                "lambdas/silver/normalize_twitter",
                 bundling=BundlingOptions(
                     image=_lambda.Runtime.PYTHON_3_11.bundling_image,
                     command=[
