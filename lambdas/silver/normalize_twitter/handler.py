@@ -15,9 +15,7 @@ def lambda_handler(event, context):
     all_posts = []
     all_users = []
 
-    for record in event["Records"]:
-        bucket = record["s3"]["bucket"]["name"]
-        key = urllib.parse.unquote_plus(record["s3"]["object"]["key"])
+    for bucket, key in iter_s3_objects(event):
 
         obj = s3.get_object(Bucket=bucket, Key=key)
         data = json.loads(obj["Body"].read())
@@ -100,3 +98,16 @@ def lambda_handler(event, context):
             "users": len(df_users),
         }),
     }
+
+def iter_s3_objects(event):
+    if "Records" in event:
+        for record in event["Records"]:
+            yield (
+                record["s3"]["bucket"]["name"],
+                urllib.parse.unquote_plus(record["s3"]["object"]["key"]),
+            )
+    else:
+        yield (
+            event["detail"]["bucket"]["name"],
+            urllib.parse.unquote_plus(event["detail"]["object"]["key"]),
+        )

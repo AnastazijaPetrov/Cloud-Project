@@ -7,6 +7,8 @@ from aws_cdk import (
     aws_s3 as s3,
     aws_s3_notifications as s3n,
     aws_ec2 as ec2,
+    aws_events as events,
+    aws_events_targets as targets,
 )
 from constructs import Construct
 
@@ -39,7 +41,6 @@ class SilverStack(Stack):
         bronze_bucket.grant_read(role)
         silver_bucket.grant_read_write(role)
 
-        # HN Lambda
         hn_lambda = _lambda.Function(
             self,
             "SilverHackerNewsLambda",
@@ -67,7 +68,6 @@ class SilverStack(Stack):
             allow_public_subnet=True,
         )
 
-        # Twitter Lambda
         twitter_lambda = _lambda.Function(
             self,
             "SilverTwitterLambda",
@@ -95,14 +95,40 @@ class SilverStack(Stack):
             allow_public_subnet=True,
         )
 
-        bronze_bucket.add_event_notification(
-            s3.EventType.OBJECT_CREATED,
-            s3n.LambdaDestination(hn_lambda),
-            s3.NotificationKeyFilter(prefix="hackernews/")
+        hn_rule = events.Rule(
+            self,
+            "HackerNewsBronzeObjectCreatedRule",
+            event_pattern=events.EventPattern(
+                source=["aws.s3"],
+                detail_type=["Object Created"],
+                detail={
+                    "bucket": {
+                        "name": [bronze_bucket.bucket_name],
+                    },
+                    "object": {
+                        "key": [{"prefix": "hackernews/"}],
+                    },
+                },
+            ),
         )
-
-        bronze_bucket.add_event_notification(
-            s3.EventType.OBJECT_CREATED,
-            s3n.LambdaDestination(twitter_lambda),
-            s3.NotificationKeyFilter(prefix="twitter/")
+    
+        hn_rule.add_target(targets.LambdaFunction(hn_lambda))
+    
+        twitter_rule = events.Rule(
+            self,
+            "TwitterBronzeObjectCreatedRule",
+            event_pattern=events.EventPattern(
+                source=["aws.s3"],
+                detail_type=["Object Created"],
+                detail={
+                    "bucket": {
+                        "name": [bronze_bucket.bucket_name],
+                    },
+                    "object": {
+                        "key": [{"prefix": "twitter/"}],
+                    },
+                },
+            ),
         )
+    
+        twitter_rule.add_target(targets.LambdaFunction(twitter_lambda))

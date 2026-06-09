@@ -19,6 +19,7 @@ class StorageStack(Stack):
             versioned=False,
             removal_policy=RemovalPolicy.DESTROY,
             auto_delete_objects=True,
+            event_bridge_enabled=True,
         )
 
         self.silver_bucket = s3.Bucket(
