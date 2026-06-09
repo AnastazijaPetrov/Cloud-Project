@@ -31,7 +31,7 @@ def lambda_handler(event, context):
 
             all_posts.append({
                 "post_id": post_id,
-                "platform": "X",
+                "platform": "Twitter",
                 "author_username": author_username,
                 "content_text": content_text,
                 "title": None,
@@ -54,7 +54,7 @@ def lambda_handler(event, context):
 
                 all_users.append({
                     "username": author_username,
-                    "platform": "X",
+                    "platform": "Twitter",
                     "karma_score": None,
                     "followers_count": int(followers_count) if followers_count not in [None, ""] else None,
                     "is_verified": bool(is_verified) if is_verified not in [None, ""] else None,
