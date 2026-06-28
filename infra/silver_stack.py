@@ -13,8 +13,9 @@ from aws_cdk import (
 from constructs import Construct
 
 
-class SilverStack(Stack):
 
+
+class SilverStack(Stack):
     def __init__(
         self,
         scope: Construct,
@@ -26,6 +27,11 @@ class SilverStack(Stack):
         **kwargs,
     ):
         super().__init__(scope, construct_id, **kwargs)
+        awswrangler_layer = _lambda.LayerVersion.from_layer_version_arn(
+            self,
+            "AwsWranglerLayer",
+            "arn:aws:lambda:eu-north-1:336392948345:layer:AWSSDKPandas-Py3.11:20"
+        )
 
         role = iam.Role(
             self,
@@ -46,13 +52,15 @@ class SilverStack(Stack):
             "SilverHackerNewsLambda",
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="handler.lambda_handler",
+            layers=[awswrangler_layer],
             code=_lambda.Code.from_asset(
                 "lambdas/silver/normalize_hackernews",
                 bundling=BundlingOptions(
                     image=_lambda.Runtime.PYTHON_3_11.bundling_image,
                     command=[
-                        "bash", "-c",
-                        "pip install --no-cache -r requirements.txt -t /asset-output && cp -r . /asset-output"
+                        "bash",
+                        "-c",
+                        "cp -r . /asset-output"
                     ],
                 ),
             ),
@@ -73,13 +81,15 @@ class SilverStack(Stack):
             "SilverTwitterLambda",
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="handler.lambda_handler",
+            layers=[awswrangler_layer],
             code=_lambda.Code.from_asset(
                 "lambdas/silver/normalize_twitter",
                 bundling=BundlingOptions(
                     image=_lambda.Runtime.PYTHON_3_11.bundling_image,
                     command=[
-                        "bash", "-c",
-                        "pip install --no-cache -r requirements.txt -t /asset-output && cp -r . /asset-output"
+                        "bash",
+                        "-c",
+                        "cp -r . /asset-output"
                     ],
                 ),
             ),
@@ -132,3 +142,6 @@ class SilverStack(Stack):
         )
     
         twitter_rule.add_target(targets.LambdaFunction(twitter_lambda))
+
+    
+    
