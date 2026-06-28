@@ -21,20 +21,22 @@ class OidcStack(Stack):
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        github_provider = iam.OpenIdConnectProvider.from_open_id_connect_provider_arn(
+        github_provider = iam.OpenIdConnectProvider(
             self,
             "GitHubOidcProvider",
-            "arn:aws:iam::492711554418:oidc-provider/token.actions.githubusercontent.com"
+            url="https://token.actions.githubusercontent.com",
+            client_ids=["sts.amazonaws.com"],
+            thumbprints=["6938fd4d98bab03faadb97b34396831e3780aea1"]
         )
 
         github_principal = iam.OpenIdConnectPrincipal(
             github_provider,
             conditions={
                 "StringEquals": {
-                    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+                "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
                 },
                 "StringLike": {
-                    "token.actions.githubusercontent.com:sub": f"repo:{github_owner}/{github_repo}:*",
+                "token.actions.githubusercontent.com:sub": f"repo:{github_owner}/{github_repo}:*",
                 },
             },
         )

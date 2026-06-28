@@ -12,7 +12,8 @@ app = cdk.App()
 
 env = cdk.Environment(
     account=os.getenv('CDK_DEFAULT_ACCOUNT'),
-    region=os.getenv('CDK_DEFAULT_REGION')
+    # region=os.getenv('CDK_DEFAULT_REGION')
+    region="eu-central-1"
 )
 
 GITHUB_OWNER = "AnastazijaPetrov"
