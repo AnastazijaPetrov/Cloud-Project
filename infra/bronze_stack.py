@@ -59,10 +59,6 @@ class BronzeStack(Stack):
                 "BRONZE_BUCKET": bronze_bucket.bucket_name,
             },
             role=hn_role,
-            vpc=vpc,
-            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
-            security_groups=[lambda_sg],
-            allow_public_subnet=True,
         )
 
         # twitter lambda
