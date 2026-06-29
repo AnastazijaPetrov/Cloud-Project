@@ -2,6 +2,8 @@
 import os
 import aws_cdk as cdk
 
+from infra.gold_stack import GoldStack
+from infra.step_functions_stack import StepFunctionsStack
 from infra.storage_stack import StorageStack
 from infra.network_stack import NetworkStack
 from infra.bronze_stack import BronzeStack
@@ -25,10 +27,8 @@ oidc = OidcStack(
     github_repo=GITHUB_REPO,
     env=env,
 )
-
-storage = StorageStack(app, "StorageStack", env=env)
 network = NetworkStack(app, "NetworkStack", env=env)
-
+storage = StorageStack(app, "StorageStack", env=env)
 bronze = BronzeStack(
     app, "BronzeStack",
     vpc=network.vpc,
@@ -36,7 +36,7 @@ bronze = BronzeStack(
     bronze_bucket=storage.bronze_bucket,
     env=env,
 )
-
+ 
 silver = SilverStack(
     app, "SilverStack",
     vpc=network.vpc,
@@ -45,5 +45,23 @@ silver = SilverStack(
     silver_bucket=storage.silver_bucket,
     env=env,
 )
-
+ 
+gold = GoldStack(
+    app, "GoldStack",
+    vpc=network.vpc,
+    lambda_sg=network.lambda_sg,
+    silver_bucket=storage.silver_bucket,
+    gold_bucket=storage.gold_bucket,
+    env=env,
+)
+ 
+StepFunctionsStack(
+    app, "StepFunctionsStack",
+    bronze_bucket=storage.bronze_bucket,
+    hn_silver_lambda=silver.hn_lambda,
+    twitter_silver_lambda=silver.twitter_lambda,
+    gold_lambda=gold.gold_lambda,
+    env=env,
+)
+ 
 app.synth()

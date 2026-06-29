@@ -5,14 +5,11 @@ from aws_cdk import (
     aws_lambda as _lambda,
     aws_iam as iam,
     aws_s3 as s3,
-    aws_s3_notifications as s3n,
     aws_ec2 as ec2,
     aws_events as events,
     aws_events_targets as targets,
 )
 from constructs import Construct
-
-
 
 
 class SilverStack(Stack):
@@ -27,6 +24,7 @@ class SilverStack(Stack):
         **kwargs,
     ):
         super().__init__(scope, construct_id, **kwargs)
+
         awswrangler_layer = _lambda.LayerVersion.from_layer_version_arn(
             self,
             "AwsWranglerLayer",
@@ -57,11 +55,7 @@ class SilverStack(Stack):
                 "lambdas/silver/normalize_hackernews",
                 bundling=BundlingOptions(
                     image=_lambda.Runtime.PYTHON_3_11.bundling_image,
-                    command=[
-                        "bash",
-                        "-c",
-                        "cp -r . /asset-output"
-                    ],
+                    command=["bash", "-c", "cp -r . /asset-output"],
                 ),
             ),
             timeout=Duration.minutes(15),
@@ -86,11 +80,7 @@ class SilverStack(Stack):
                 "lambdas/silver/normalize_twitter",
                 bundling=BundlingOptions(
                     image=_lambda.Runtime.PYTHON_3_11.bundling_image,
-                    command=[
-                        "bash",
-                        "-c",
-                        "cp -r . /asset-output"
-                    ],
+                    command=["bash", "-c", "cp -r . /asset-output"],
                 ),
             ),
             timeout=Duration.minutes(15),
@@ -112,18 +102,13 @@ class SilverStack(Stack):
                 source=["aws.s3"],
                 detail_type=["Object Created"],
                 detail={
-                    "bucket": {
-                        "name": [bronze_bucket.bucket_name],
-                    },
-                    "object": {
-                        "key": [{"prefix": "hackernews/"}],
-                    },
+                    "bucket": {"name": [bronze_bucket.bucket_name]},
+                    "object": {"key": [{"prefix": "hackernews/"}]},
                 },
             ),
         )
-    
         hn_rule.add_target(targets.LambdaFunction(hn_lambda))
-    
+
         twitter_rule = events.Rule(
             self,
             "TwitterBronzeObjectCreatedRule",
@@ -131,17 +116,12 @@ class SilverStack(Stack):
                 source=["aws.s3"],
                 detail_type=["Object Created"],
                 detail={
-                    "bucket": {
-                        "name": [bronze_bucket.bucket_name],
-                    },
-                    "object": {
-                        "key": [{"prefix": "twitter/"}],
-                    },
+                    "bucket": {"name": [bronze_bucket.bucket_name]},
+                    "object": {"key": [{"prefix": "twitter/"}]},
                 },
             ),
         )
-    
         twitter_rule.add_target(targets.LambdaFunction(twitter_lambda))
 
-    
-    
+        self.hn_lambda = hn_lambda
+        self.twitter_lambda = twitter_lambda
