@@ -64,10 +64,6 @@ class SilverStack(Stack):
             environment={
                 "SILVER_BUCKET": silver_bucket.bucket_name,
             },
-            vpc=vpc,
-            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
-            security_groups=[lambda_sg],
-            allow_public_subnet=True,
         )
 
         twitter_lambda = _lambda.Function(
@@ -89,10 +85,6 @@ class SilverStack(Stack):
             environment={
                 "SILVER_BUCKET": silver_bucket.bucket_name,
             },
-            vpc=vpc,
-            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
-            security_groups=[lambda_sg],
-            allow_public_subnet=True,
         )
 
         hn_rule = events.Rule(
