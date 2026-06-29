@@ -26,7 +26,7 @@ class GoldStack(Stack):
         awswrangler_layer = _lambda.LayerVersion.from_layer_version_arn(
             self,
             "AwsWranglerLayer",
-            "arn:aws:lambda:eu-north-1:336392948345:layer:AWSSDKPandas-Py3.11:20",
+            "arn:aws:lambda:eu-central-1:336392948345:layer:AWSSDKPandas-Python311:24",
         )
 
         role = iam.Role(
@@ -64,8 +64,7 @@ class GoldStack(Stack):
                 "GOLD_BUCKET": gold_bucket.bucket_name,
             },
             vpc=vpc,
-            vpc_subnets=ec2.SubnetSelection(
-                subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS  # FIX
-            ),
+            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
             security_groups=[lambda_sg],
+            allow_public_subnet=True,
         )

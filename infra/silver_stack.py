@@ -45,19 +45,6 @@ class SilverStack(Stack):
         bronze_bucket.grant_read(role)
         silver_bucket.grant_read_write(role)
 
-        # FIX: PRIVATE_WITH_EGRESS umesto PUBLIC subneta.
-        #
-        # Lambda u public subnetu ne dobija automatski internet pristup i
-        # krši principle least privilege iz spec tačke 7.
-        # PRIVATE_WITH_EGRESS subnet koristi NAT Gateway za outbound pristup
-        # internetu (potrebno za HN API pozive u normalize_hackernews).
-        # S3 saobraćaj ide kroz VPC Gateway Endpoint (bez NAT-a, bez troška).
-        #
-        # Pretpostavka: VPC ima konfigurisane private subnete sa NAT Gateway-em
-        # i S3 Gateway Endpoint. Ovo je standardni CDK VPC setup:
-        #   ec2.Vpc(self, "Vpc", nat_gateways=1)
-        # automatski kreira public + private_with_egress subnete.
-
         hn_lambda = _lambda.Function(
             self,
             "SilverHackerNewsLambda",
@@ -78,11 +65,9 @@ class SilverStack(Stack):
                 "SILVER_BUCKET": silver_bucket.bucket_name,
             },
             vpc=vpc,
-            vpc_subnets=ec2.SubnetSelection(
-                subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS  # FIX
-            ),
+            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
             security_groups=[lambda_sg],
-            # FIX: allow_public_subnet=True uklonjeno — ne treba u private subnetu
+            allow_public_subnet=True,
         )
 
         twitter_lambda = _lambda.Function(
@@ -105,11 +90,9 @@ class SilverStack(Stack):
                 "SILVER_BUCKET": silver_bucket.bucket_name,
             },
             vpc=vpc,
-            vpc_subnets=ec2.SubnetSelection(
-                subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS  # FIX
-            ),
+            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
             security_groups=[lambda_sg],
-            # FIX: allow_public_subnet=True uklonjeno
+            allow_public_subnet=True,
         )
 
         hn_rule = events.Rule(
@@ -140,6 +123,5 @@ class SilverStack(Stack):
         )
         twitter_rule.add_target(targets.LambdaFunction(twitter_lambda))
 
-        # Eksportujemo lambde da bi ih StepFunctionsStack mogao koristiti
         self.hn_lambda = hn_lambda
         self.twitter_lambda = twitter_lambda
