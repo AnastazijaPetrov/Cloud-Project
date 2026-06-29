@@ -163,14 +163,21 @@ def lambda_handler(event, context):
 
 
 def iter_s3_objects(event):
-    if "Records" in event:
+    # S3 direct trigger
+    if isinstance(event, dict) and "Records" in event:
         for record in event["Records"]:
             yield (
                 record["s3"]["bucket"]["name"],
                 urllib.parse.unquote_plus(record["s3"]["object"]["key"]),
             )
-    else:
+        return
+
+    # EventBridge trigger
+    if isinstance(event, dict) and "detail" in event:
         yield (
             event["detail"]["bucket"]["name"],
             urllib.parse.unquote_plus(event["detail"]["object"]["key"]),
         )
+        return
+
+    raise ValueError(f"Unsupported event format: {json.dumps(event)[:500]}")
