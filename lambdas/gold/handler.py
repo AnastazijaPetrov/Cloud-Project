@@ -3,6 +3,9 @@ import json
 import pandas as pd
 import awswrangler as wr
 from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+
+yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date()
 
 SILVER_BUCKET = os.environ["SILVER_BUCKET"]
 GOLD_BUCKET = os.environ["GOLD_BUCKET"]
@@ -17,13 +20,48 @@ def compute_data_quality_score(df: pd.DataFrame, required_columns: list) -> floa
 
 def lambda_handler(event, context):
     today = datetime.now(timezone.utc).date()
+    yesterday = today - timedelta(days=1)
     today_str = str(today)
 
-    posts = wr.s3.read_parquet(f"s3://{SILVER_BUCKET}/posts/")
-    users = wr.s3.read_parquet(f"s3://{SILVER_BUCKET}/users/")
+    try:
+        posts = wr.s3.read_parquet(
+            path=f"s3://{SILVER_BUCKET}/posts/",
+            dataset=True,
+            validate_schema=False
+        )
+    except Exception as e:
+        if "NoFilesFound" in type(e).__name__:
+            return {"statusCode": 200, "body": "No posts data available"}
+        raise
+
+    try:
+        users = wr.s3.read_parquet(
+            path=f"s3://{SILVER_BUCKET}/users/",
+            dataset=True,
+            validate_schema=False
+        )
+    except Exception as e:
+        if "NoFilesFound" in type(e).__name__:
+            return {"statusCode": 200, "body": "No users data available"}
+        raise
+
+    users["platform"] = users["platform"].astype(str)
+    posts["platform"] = posts["platform"].astype(str)
+
+    if "platform" not in users.columns:
+        raise ValueError(f"users dataset missing columns: {users.columns.tolist()}")
 
     posts["created_at"] = pd.to_datetime(posts["created_at"], utc=True)
     posts["date"] = posts["created_at"].dt.date.astype(str)
+
+    required_cols = {"platform", "username"}
+
+    if users.empty:
+        return {"statusCode": 200, "body": "No data in users dataset"}
+
+    missing = required_cols - set(users.columns)
+    if missing:
+        raise ValueError(f"Missing columns: {missing}")
 
     users = (
         users
@@ -39,19 +77,20 @@ def lambda_handler(event, context):
         .size()
         .reset_index(name="total_posts")
     )
+    fact_hn_daily_posts["platform"] = "HackerNews"
 
     users["created_at"] = pd.to_datetime(users["created_at"], utc=True, errors="coerce")
     users["created_date"] = users["created_at"].dt.date.astype(str)
 
     platform_totals = (
-        users.groupby("platform")["username"]
+        users.groupby("platform", observed=True)["username"]
         .nunique()
         .reset_index(name="total_users")
     )
 
     new_users_today = (
         users[users["created_date"] == today_str]
-        .groupby("platform")["username"]
+        .groupby("platform", observed=True)["username"]
         .nunique()
         .reset_index(name="new_users")
     )
@@ -60,6 +99,8 @@ def lambda_handler(event, context):
     fact_daily_users["new_users"] = fact_daily_users["new_users"].fillna(0).astype(int)
     fact_daily_users["date"] = today_str
     fact_daily_users = fact_daily_users[["date", "platform", "total_users", "new_users"]]
+
+    users["platform"] = users["platform"].fillna("unknown")
 
     x_users = users[
         (users["platform"] == "Twitter") &
@@ -93,14 +134,19 @@ def lambda_handler(event, context):
     dim_bottom_hn_users["date"] = today_str
 
     hn_jobs = hn_posts[
-        (hn_posts["post_type"] == "job") &
-        (hn_posts["score"].notna())
-    ]
+        hn_posts["post_type"] == "job"
+    ].copy()
 
     dim_top_jobs = (
-        hn_jobs[["post_id", "author_username", "created_at", "post_type", "score"]]
-        .nlargest(10, "score")
-        .copy()
+        hn_jobs[
+            ["post_id", "author_username", "created_at", "post_type", "score"]
+        ]
+        .sort_values(
+            by=["score", "created_at"],
+            ascending=[False, False],
+            na_position="last"
+        )
+        .head(10)
     )
     dim_top_jobs["date"] = today_str
 
