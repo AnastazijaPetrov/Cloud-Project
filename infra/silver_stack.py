@@ -42,7 +42,13 @@ class SilverStack(Stack):
             ]
         )
 
-        bronze_bucket.grant_read(role)
+        role.add_to_policy(iam.PolicyStatement(
+            actions=["s3:GetObject", "s3:ListBucket"],
+            resources=[
+                bronze_bucket.bucket_arn,
+                bronze_bucket.arn_for_objects("*")
+            ]
+        ))
         silver_bucket.grant_read_write(role)
 
         hn_lambda = _lambda.Function(
