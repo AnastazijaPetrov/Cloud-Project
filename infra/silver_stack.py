@@ -5,9 +5,7 @@ from aws_cdk import (
     aws_lambda as _lambda,
     aws_iam as iam,
     aws_s3 as s3,
-    aws_ec2 as ec2,
-    aws_events as events,
-    aws_events_targets as targets,
+    aws_ec2 as ec2
 )
 from constructs import Construct
 
@@ -92,34 +90,3 @@ class SilverStack(Stack):
                 "SILVER_BUCKET": silver_bucket.bucket_name,
             },
         )
-
-        hn_rule = events.Rule(
-            self,
-            "HackerNewsBronzeObjectCreatedRule",
-            event_pattern=events.EventPattern(
-                source=["aws.s3"],
-                detail_type=["Object Created"],
-                detail={
-                    "bucket": {"name": [bronze_bucket.bucket_name]},
-                    "object": {"key": [{"prefix": "hackernews/"}]},
-                },
-            ),
-        )
-        hn_rule.add_target(targets.LambdaFunction(hn_lambda))
-
-        twitter_rule = events.Rule(
-            self,
-            "TwitterBronzeObjectCreatedRule",
-            event_pattern=events.EventPattern(
-                source=["aws.s3"],
-                detail_type=["Object Created"],
-                detail={
-                    "bucket": {"name": [bronze_bucket.bucket_name]},
-                    "object": {"key": [{"prefix": "twitter/"}]},
-                },
-            ),
-        )
-        twitter_rule.add_target(targets.LambdaFunction(twitter_lambda))
-
-        self.hn_lambda = hn_lambda
-        self.twitter_lambda = twitter_lambda
