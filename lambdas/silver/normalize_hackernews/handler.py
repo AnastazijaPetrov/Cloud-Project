@@ -9,6 +9,7 @@ import pandas as pd
 import awswrangler as wr
 from bs4 import BeautifulSoup
 import requests
+import uuid
 
 HN_USER_API = "https://hn.algolia.com/api/v1/users/"
 
@@ -116,6 +117,7 @@ def lambda_handler(event, context):
             if author_username and author_username not in seen_users:
                 karma = fetch_user_karma(author_username)
                 seen_users[author_username] = {
+                    "user_id": str(uuid.uuid5(uuid.NAMESPACE_DNS, f"HackerNews:{author_username}")),
                     "username":        author_username,
                     "platform":        "HackerNews",
                     "karma_score":     karma,
