@@ -4,6 +4,7 @@ import urllib.parse
 import boto3
 import pandas as pd
 import awswrangler as wr
+import uuid
 
 s3_client = boto3.client("s3")
 
@@ -95,6 +96,7 @@ def lambda_handler(event, context):
                 raw_verified = item.get("is_verified")
 
                 seen_users[author_username] = {
+                    "user_id": str(uuid.uuid5(uuid.NAMESPACE_DNS, f"Twitter:{author_username}")),
                     "username": author_username,
                     "platform": "Twitter",
                     "karma_score": None,
