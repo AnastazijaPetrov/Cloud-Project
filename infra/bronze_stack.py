@@ -59,6 +59,9 @@ class BronzeStack(Stack):
                 "BRONZE_BUCKET": bronze_bucket.bucket_name,
             },
             role=hn_role,
+            vpc=vpc,
+            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
+            security_groups=[lambda_sg],
         )
 
         # twitter lambda
@@ -96,9 +99,8 @@ class BronzeStack(Stack):
             },
             role=twitter_role,
             vpc=vpc,
-            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
+            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
             security_groups=[lambda_sg],
-            allow_public_subnet=True,
         )
 
         # Event bridge cron at 02:00 utc used by both lambdas
@@ -116,3 +118,6 @@ class BronzeStack(Stack):
 
         daily_schedule.add_target(targets.LambdaFunction(hn_lambda))
         daily_schedule.add_target(targets.LambdaFunction(twitter_lambda))
+
+        self.hn_lambda = hn_lambda
+        self.twitter_lambda = twitter_lambda

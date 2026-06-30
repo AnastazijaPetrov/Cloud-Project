@@ -57,9 +57,8 @@ class NotificationsStack(Stack):
                 "AWS_REGION_NAME": self.region,
             },
             vpc=vpc,
-            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
+            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
             security_groups=[lambda_sg],
-            allow_public_subnet=True,
         )
 
         notification_lambda.add_to_role_policy(iam.PolicyStatement(
