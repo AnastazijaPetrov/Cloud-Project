@@ -1,110 +1,150 @@
 import os
 import json
-import html
 import urllib.parse
-from datetime import datetime, timezone
-
 import boto3
 import pandas as pd
 import awswrangler as wr
-from bs4 import BeautifulSoup
 
 s3_client = boto3.client("s3")
 
 SILVER_BUCKET = os.environ["SILVER_BUCKET"]
 
-
-def clean_html(value):
-    if not value:
+def safe_float(x):
+    try:
+        if x is None or x == "" or x == "null":
+            return None
+        return float(x)
+    except:
         return None
-    text = html.unescape(str(value))
-    text = BeautifulSoup(text, "html.parser").get_text(" ")
-    text = " ".join(text.split())
-    return text or None
 
 
-def parse_hn_time(value):
-    if value is None:
-        return None
-    return datetime.fromtimestamp(int(value), tz=timezone.utc)
+def safe_bool(x):
+    if x in [True, "true", "True", 1, "1"]:
+        return True
+    if x in [False, "false", "False", 0, "0", None, ""]:
+        return False
+    return None
 
+def iter_s3_objects(event):
+    if "Records" in event:
+        for record in event["Records"]:
+            yield (
+                record["s3"]["bucket"]["name"],
+                urllib.parse.unquote_plus(record["s3"]["object"]["key"]),
+            )
+        return
+
+    if "detail" in event:
+        yield (
+            event["detail"]["bucket"]["name"],
+            urllib.parse.unquote_plus(event["detail"]["object"]["key"]),
+        )
+        return
+
+    raise ValueError(f"Unsupported event format: {json.dumps(event)[:500]}")
 
 def lambda_handler(event, context):
+    print("Twitter Silver Lambda triggered")
+
     all_posts = []
     all_users = []
-    all_post_children = []
 
     for bucket, key in iter_s3_objects(event):
+        print(f"Processing s3://{bucket}/{key}")
+
         obj = s3_client.get_object(Bucket=bucket, Key=key)
         data = json.loads(obj["Body"].read())
+
+        if isinstance(data, dict):
+            data = data.get("data") or data.get("tweets") or []
 
         seen_users = {}
 
         for item in data:
-            post_id = str(item.get("id"))
-            author_username = item.get("by")
-            created_at = parse_hn_time(item.get("time"))
-            content_text = clean_html(item.get("text")) or clean_html(item.get("title"))
+            post_id = str(item.get("post_id") or item.get("id"))
+            author_username = item.get("original_author")
+
+            created_at = pd.to_datetime(
+                item.get("created_at"), utc=True, errors="coerce"
+            )
+
+            content_text = item.get("clean_tweet") or item.get("original_text")
 
             all_posts.append({
                 "post_id": post_id,
-                "platform": "HackerNews",
+                "platform": "Twitter",
                 "author_username": author_username,
                 "content_text": content_text,
-                "title": clean_html(item.get("title")),
+                "title": None,
                 "created_at": created_at,
-                "post_type": item.get("type"),
-                "score": item.get("score"),
-                "favorite_count": None,
-                "retweet_count": None,
-                "lang": None,
-                "hashtags": None,
-                "user_mentions": None,
-                "place": None,
-                "sentiment": None,
-                "kids_count": len(item.get("kids", [])),
+                "post_type": "tweet",
+                "score": None,
+                "favorite_count": safe_float(item.get("favorite_count")),
+                "retweet_count": safe_float(item.get("retweet_count")),
+                "lang": item.get("lang"),
+                "hashtags": item.get("hashtags"),
+                "user_mentions": item.get("user_mentions"),
+                "place": item.get("place"),
+                "sentiment": item.get("sentiment"),
+                "kids_count": None,
             })
 
             if author_username and author_username not in seen_users:
+
+                raw_followers = item.get("followers_count")
+                raw_verified = item.get("is_verified")
+
                 seen_users[author_username] = {
                     "username": author_username,
-                    "platform": "HackerNews",
+                    "platform": "Twitter",
                     "karma_score": None,
-                    "followers_count": None,
-                    "is_verified": None,
-                    "created_at": None,
+                    "followers_count": safe_float(raw_followers),
+                    "is_verified": safe_bool(raw_verified),
+                    "created_at": pd.to_datetime(
+                        item.get("user_created_at")
+                        or item.get("account_created_at"),
+                        utc=True,
+                        errors="coerce"
+                    ),
                 }
-
-            for child_id in item.get("kids", []):
-                all_post_children.append({
-                    "parent_post_id": post_id,
-                    "child_post_id": str(child_id),
-                    "platform": "HackerNews",
-                })
 
         all_users.extend(seen_users.values())
 
     df_posts = pd.DataFrame(all_posts)
     df_users = pd.DataFrame(all_users)
-    df_post_children = pd.DataFrame(all_post_children)
 
-    if not df_posts.empty:
-        df_posts = df_posts.drop_duplicates(subset=["platform", "post_id"])
-        df_posts["created_at"] = pd.to_datetime(df_posts["created_at"], utc=True)
-        df_posts["year"] = df_posts["created_at"].dt.year
-        df_posts["month"] = df_posts["created_at"].dt.month
-        df_posts["day"] = df_posts["created_at"].dt.day
+    if df_posts.empty:
+        print("No posts found - exiting")
+        return {"statusCode": 200, "body": "No posts"}
 
-        wr.s3.to_parquet(
-            df=df_posts,
-            path=f"s3://{SILVER_BUCKET}/posts/",
-            dataset=True,
-            mode="overwrite_partitions",
-            partition_cols=["platform", "year", "month", "day"],
-        )
+    df_posts = df_posts.drop_duplicates(subset=["platform", "post_id"])
+    df_posts = df_posts.dropna(subset=["created_at"])
+
+    df_posts["created_at"] = pd.to_datetime(df_posts["created_at"], utc=True)
+    df_posts["year"] = df_posts["created_at"].dt.year
+    df_posts["month"] = df_posts["created_at"].dt.month
+    df_posts["day"] = df_posts["created_at"].dt.day
+
+    df_posts["hashtags"] = df_posts["hashtags"].apply(
+        lambda x: json.dumps(x) if isinstance(x, list) else (x if isinstance(x, str) else None)
+    )
+    df_posts["user_mentions"] = df_posts["user_mentions"].apply(
+        lambda x: json.dumps(x) if isinstance(x, list) else (x if isinstance(x, str) else None)
+    )
+
+    wr.s3.to_parquet(
+        df=df_posts,
+        path=f"s3://{SILVER_BUCKET}/posts/",
+        dataset=True,
+        mode="overwrite_partitions",
+        partition_cols=["platform", "year", "month", "day"],
+    )
 
     if not df_users.empty:
         df_users = df_users.drop_duplicates(subset=["platform", "username"])
+        df_users["followers_count"] = pd.to_numeric(df_users["followers_count"], errors="coerce").astype("Float64")
+        df_users["karma_score"] = pd.to_numeric(df_users["karma_score"], errors="coerce").astype("Float64")
+        df_users["is_verified"] = df_users["is_verified"].astype("boolean")
 
         wr.s3.to_parquet(
             df=df_users,
@@ -114,46 +154,11 @@ def lambda_handler(event, context):
             partition_cols=["platform"],
         )
 
-    if not df_post_children.empty:
-        df_post_children = df_post_children.drop_duplicates(
-            subset=["platform", "parent_post_id", "child_post_id"]
-        )
-
-        wr.s3.to_parquet(
-            df=df_post_children,
-            path=f"s3://{SILVER_BUCKET}/post_children/",
-            dataset=True,
-            mode="append",
-            partition_cols=["platform"],
-        )
-
     return {
         "statusCode": 200,
         "body": json.dumps({
-            "message": "HackerNews silver normalization successful",
+            "message": "Twitter silver normalization successful",
             "posts": len(df_posts),
             "users": len(df_users),
-            "post_children": len(df_post_children),
         }),
     }
-
-
-def iter_s3_objects(event):
-    # S3 direct trigger
-    if isinstance(event, dict) and "Records" in event:
-        for record in event["Records"]:
-            yield (
-                record["s3"]["bucket"]["name"],
-                urllib.parse.unquote_plus(record["s3"]["object"]["key"]),
-            )
-        return
-
-    # EventBridge trigger
-    if isinstance(event, dict) and "detail" in event:
-        yield (
-            event["detail"]["bucket"]["name"],
-            urllib.parse.unquote_plus(event["detail"]["object"]["key"]),
-        )
-        return
-
-    raise ValueError(f"Unsupported event format: {json.dumps(event)[:500]}")

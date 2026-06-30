@@ -8,10 +8,24 @@ import boto3
 import pandas as pd
 import awswrangler as wr
 from bs4 import BeautifulSoup
+import requests
+
+HN_USER_API = "https://hn.algolia.com/api/v1/users/"
 
 s3_client = boto3.client("s3")
 
 SILVER_BUCKET = os.environ["SILVER_BUCKET"]
+
+
+def fetch_user_karma(username: str):
+    try:
+        resp = requests.get(f"{HN_USER_API}{username}", timeout=10)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        return data.get("karma")
+    except:
+        return None
 
 
 def clean_html(value):
@@ -25,14 +39,24 @@ def clean_html(value):
 
 def parse_post_type(tags: list) -> str | None:
     """
-    Algolia _tags polje sadrži listu tagova kao što su:
-    ["story", "author_pg", "story_123456"]
-    Izvlačimo prvi tag koji odgovara poznatom tipu objave.
+    Algolia _tags field contains a list of tags like:
+    ["story", "author_pg", "story_123456"]         -> story
+    ["story", "show_hn", "author_x", "story_123"]  -> show_hn  (FIX: prioritize specific types)
+    ["story", "ask_hn", "author_x", "story_123"]   -> ask_hn
+    ["job", "author_x", "story_123"]               -> job
+    ["comment", "author_x", "story_123"]           -> comment
+    ["poll", "author_x", "story_123"]              -> poll
+
+    Priority order matters: more specific types must come before generic "story",
+    because Algolia includes both "story" and "show_hn"/"ask_hn" in the same _tags list.
+    Without priority, "story" would always win since it appears first.
     """
-    known_types = {"story", "comment", "job", "poll", "ask_hn", "show_hn"}
-    for tag in (tags or []):
-        if tag in known_types:
-            return tag
+    # More specific types take priority over the generic "story" tag
+    priority_types = ["ask_hn", "show_hn", "job", "poll", "comment", "story"]
+    tag_set = set(tags or [])
+    for t in priority_types:
+        if t in tag_set:
+            return t
     return None
 
 
@@ -48,10 +72,10 @@ def lambda_handler(event, context):
         seen_users = {}
 
         for item in data:
-            post_id        = str(item.get("objectID") or item.get("id", ""))
+            post_id         = str(item.get("objectID") or item.get("id", ""))
             author_username = item.get("author") or item.get("by")
-            post_type      = parse_post_type(item.get("_tags", [])) or item.get("type")
-            score          = item.get("points") or item.get("score")
+            post_type       = parse_post_type(item.get("_tags", [])) or item.get("type")
+            score           = item.get("points") or item.get("score")
 
             raw_time = item.get("created_at_i")
             if raw_time is not None:
@@ -71,53 +95,61 @@ def lambda_handler(event, context):
             children = item.get("children") or item.get("kids") or []
 
             all_posts.append({
-                "post_id": post_id,
-                "platform": "HackerNews",
+                "post_id":        post_id,
+                "platform":       "HackerNews",
                 "author_username": author_username,
-                "content_text": content_text,
-                "title": clean_html(item.get("title")),
-                "created_at": created_at,
-                "post_type": post_type,
-                "score": score,
+                "content_text":   content_text,
+                "title":          clean_html(item.get("title")),
+                "created_at":     created_at,
+                "post_type":      post_type,
+                "score":          score,
                 "favorite_count": None,
-                "retweet_count": None,
-                "lang": None,
-                "hashtags": None,
-                "user_mentions": None,
-                "place": None,
-                "sentiment": None,
-                "kids_count": len(children),
+                "retweet_count":  None,
+                "lang":           None,
+                "hashtags":       None,
+                "user_mentions":  None,
+                "place":          None,
+                "sentiment":      None,
+                "kids_count":     len(children),
             })
 
             if author_username and author_username not in seen_users:
+                karma = fetch_user_karma(author_username)
                 seen_users[author_username] = {
-                    "username": author_username,
-                    "platform": "HackerNews",
-                    "karma_score": None,
+                    "username":        author_username,
+                    "platform":        "HackerNews",
+                    "karma_score":     karma,
                     "followers_count": None,
-                    "is_verified": None,
-                    "created_at": None,
+                    "is_verified":     None,
+                    "created_at":      None,
                 }
 
             for child_id in children:
                 all_post_children.append({
                     "parent_post_id": post_id,
-                    "child_post_id": str(child_id),
-                    "platform": "HackerNews",
+                    "child_post_id":  str(child_id),
+                    "platform":       "HackerNews",
                 })
 
         all_users.extend(seen_users.values())
 
-    df_posts = pd.DataFrame(all_posts)
-    df_users = pd.DataFrame(all_users)
+    df_posts        = pd.DataFrame(all_posts)
+    df_users        = pd.DataFrame(all_users)
     df_post_children = pd.DataFrame(all_post_children)
 
     if not df_posts.empty:
         df_posts = df_posts.drop_duplicates(subset=["platform", "post_id"])
         df_posts["created_at"] = pd.to_datetime(df_posts["created_at"], utc=True)
-        df_posts["year"] = df_posts["created_at"].dt.year
+        df_posts["year"]  = df_posts["created_at"].dt.year
         df_posts["month"] = df_posts["created_at"].dt.month
-        df_posts["day"] = df_posts["created_at"].dt.day
+        df_posts["day"]   = df_posts["created_at"].dt.day
+
+        df_posts["hashtags"] = df_posts["hashtags"].apply(
+            lambda x: json.dumps(x) if isinstance(x, list) else (x if isinstance(x, str) else None)
+        )
+        df_posts["user_mentions"] = df_posts["user_mentions"].apply(
+            lambda x: json.dumps(x) if isinstance(x, list) else (x if isinstance(x, str) else None)
+        )
 
         wr.s3.to_parquet(
             df=df_posts,
@@ -129,6 +161,9 @@ def lambda_handler(event, context):
 
     if not df_users.empty:
         df_users = df_users.drop_duplicates(subset=["platform", "username"])
+        df_users["followers_count"] = pd.to_numeric(df_users["followers_count"], errors="coerce").astype("Float64")
+        df_users["karma_score"]     = pd.to_numeric(df_users["karma_score"],     errors="coerce").astype("Float64")
+        df_users["is_verified"]     = df_users["is_verified"].astype("boolean")
 
         wr.s3.to_parquet(
             df=df_users,
@@ -155,8 +190,8 @@ def lambda_handler(event, context):
         "statusCode": 200,
         "body": json.dumps({
             "message": "HackerNews silver normalization successful",
-            "posts": len(df_posts),
-            "users": len(df_users),
+            "posts":         len(df_posts),
+            "users":         len(df_users),
             "post_children": len(df_post_children),
         }),
     }
