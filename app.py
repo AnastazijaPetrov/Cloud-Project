@@ -75,6 +75,8 @@ NotificationsStack(
         gold.gold_lambda,
     ],
     state_machine=step_functions.state_machine,
+    vpc=network.vpc,
+    lambda_sg=network.lambda_sg,
     env=env,
 )
  

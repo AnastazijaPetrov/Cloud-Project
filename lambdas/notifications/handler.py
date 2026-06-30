@@ -6,13 +6,12 @@ import boto3
 ssm = boto3.client("ssm")
 
 WEBHOOK_PARAM_NAME = os.environ["DISCORD_WEBHOOK_PARAM"]
+REGION = os.environ.get("AWS_REGION_NAME", "eu-central-1")
 
-# Cache webhook URL preko Lambda warm invokacija
 _webhook_url = None
 
 
 def get_webhook_url():
-    """Učitava webhook URL iz SSM Parameter Store-a (sa cache-om)."""
     global _webhook_url
     if _webhook_url is None:
         response = ssm.get_parameter(
@@ -23,42 +22,101 @@ def get_webhook_url():
     return _webhook_url
 
 
+def build_cloudwatch_url(log_group: str) -> str:
+    encoded = log_group.replace("/", "$252F")
+    return (
+        f"https://{REGION}.console.aws.amazon.com/cloudwatch/home"
+        f"?region={REGION}#logsV2:log-groups/log-group/{encoded}"
+    )
+
+
+def parse_cloudwatch_alarm(sns_message: dict) -> dict:
+    """
+    CloudWatch alarm SNS poruka ima oblik:
+    {
+        "AlarmName": "hackernews-ingest-errors",
+        "NewStateReason": "Threshold Crossed: 1 datapoint...",
+        "Trigger": {
+            "Dimensions": [{"name": "FunctionName", "value": "hackernews-ingest"}]
+        }
+    }
+    """
+    alarm_name = sns_message.get("AlarmName", "Unknown")
+    reason = sns_message.get("NewStateReason", "No reason provided")
+
+    function_name = alarm_name.replace("-errors", "")
+
+    log_group = f"/aws/lambda/{function_name}"
+    cw_url = build_cloudwatch_url(log_group)
+
+    return {
+        "title": f"Lambda Failure: {function_name}",
+        "description": f"{reason}\n\n[View CloudWatch logs]({cw_url})",
+        "color": 15158332,  # crvena
+    }
+
+
+def parse_step_function_failure(sns_message: dict) -> dict:
+    """
+    EventBridge → SNS poruka za Step Function failure ima oblik:
+    {
+        "source": "aws.states",
+        "detail": {
+            "executionArn": "arn:aws:states:eu-central-1:...:execution:Pipeline:abc",
+            "stateMachineArn": "...",
+            "status": "FAILED",
+            "name": "abc-123"
+        }
+    }
+    """
+    detail = sns_message.get("detail", {})
+    execution_arn = detail.get("executionArn", "Unknown")
+    status = detail.get("status", "Unknown")
+    name = detail.get("name", "Unknown")
+
+    state_machine_name = "Unknown"
+    if ":execution:" in execution_arn:
+        parts = execution_arn.split(":execution:")
+        if len(parts) > 1:
+            state_machine_name = parts[1].split(":")[0]
+
+    return {
+        "title": f"Step Function {status}: {state_machine_name}",
+        "description": f"Execution: {name}\nARN: `{execution_arn}`",
+        "color": 15158332,
+    }
+
+
 def format_message(event):
     """
     Formatira poruku za Discord na osnovu tipa event-a.
-    Event može biti SNS poruka (CloudWatch alarm) ili EventBridge event
-    (Step Function failure).
+    Svi event-i dolaze kroz SNS topic.
     """
-
-    # CloudWatch alarm preko SNS-a
-    if "Records" in event:
-        sns_message = json.loads(event["Records"][0]["Sns"]["Message"])
-        alarm_name = sns_message.get("AlarmName", "Unknown alarm")
-        reason = sns_message.get("NewStateReason", "No reason provided")
-
+    if "Records" not in event:
         return {
-            "title": f"AWS Lambda Failure: {alarm_name}",
-            "description": reason,
-            "color": 15158332,  # crvena
-        }
-
-    # Step Function failure event direktno
-    if event.get("source") == "aws.states":
-        detail = event.get("detail", {})
-        execution_arn = detail.get("executionArn", "Unknown")
-        status = detail.get("status", "Unknown")
-        state_machine_name = execution_arn.split(":")[-2] if ":" in execution_arn else "Unknown"
-
-        return {
-            "title": f"Step Function {status}: {state_machine_name}",
-            "description": f"Execution ARN: {execution_arn}",
+            "title": "AWS Notification (Unknown format)",
+            "description": json.dumps(event)[:1500],
             "color": 15158332,
         }
 
-    # Fallback
+    sns_message_raw = event["Records"][0]["Sns"]["Message"]
+    try:
+        sns_message = json.loads(sns_message_raw)
+    except json.JSONDecodeError:
+        return {
+            "title": "AWS Notification (Raw)",
+            "description": sns_message_raw[:1500],
+            "color": 15158332,
+        }
+
+    if "AlarmName" in sns_message:
+        return parse_cloudwatch_alarm(sns_message)
+    if sns_message.get("source") == "aws.states":
+        return parse_step_function_failure(sns_message)
+
     return {
         "title": "AWS Notification",
-        "description": json.dumps(event)[:1500],
+        "description": json.dumps(sns_message)[:1500],
         "color": 15158332,
     }
 

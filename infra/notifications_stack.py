@@ -11,6 +11,7 @@ from aws_cdk import (
     aws_events as events,
     aws_events_targets as targets,
     aws_stepfunctions as sfn,
+    aws_ec2 as ec2,
 )
 from constructs import Construct
 
@@ -25,6 +26,8 @@ class NotificationsStack(Stack):
             construct_id: str,
             monitored_lambdas: list[_lambda.IFunction],
             state_machine: sfn.IStateMachine,
+            vpc: ec2.IVpc,
+            lambda_sg: ec2.ISecurityGroup,
             **kwargs,
     ):
         super().__init__(scope, construct_id, **kwargs)
@@ -51,9 +54,13 @@ class NotificationsStack(Stack):
             memory_size=128,
             environment={
                 "DISCORD_WEBHOOK_PARAM": DISCORD_WEBHOOK_PARAM_NAME,
+                "AWS_REGION_NAME": self.region,
             },
+            vpc=vpc,
+            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
+            security_groups=[lambda_sg],
+            allow_public_subnet=True,
         )
-
 
         notification_lambda.add_to_role_policy(iam.PolicyStatement(
             actions=["ssm:GetParameter"],
@@ -61,23 +68,23 @@ class NotificationsStack(Stack):
                 f"arn:aws:ssm:{self.region}:{self.account}:parameter{DISCORD_WEBHOOK_PARAM_NAME}",
             ],
         ))
+
         notification_lambda.add_to_role_policy(iam.PolicyStatement(
             actions=["kms:Decrypt"],
-            resources=[
-                f"arn:aws:kms:{self.region}:{self.account}:key/*",
-            ],
+            resources=["*"],
             conditions={
                 "StringEquals": {
                     "kms:ViaService": f"ssm.{self.region}.amazonaws.com"
+                },
+                "ForAnyValue:StringEquals": {
+                    "kms:ResourceAliases": "alias/aws/ssm"
                 }
             },
         ))
 
-        # SNS pretplaća Notification Lambda
         self.alerts_topic.add_subscription(
             sns_subs.LambdaSubscription(notification_lambda)
         )
-
 
         for fn in monitored_lambdas:
             alarm = cloudwatch.Alarm(
@@ -109,5 +116,5 @@ class NotificationsStack(Stack):
         )
 
         step_function_failure_rule.add_target(
-            targets.LambdaFunction(notification_lambda)
+            targets.SnsTopic(self.alerts_topic)
         )
