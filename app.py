@@ -3,6 +3,7 @@ import os
 import aws_cdk as cdk
 
 from infra.gold_stack import GoldStack
+from infra.notifications_stack import NotificationsStack
 from infra.step_functions_stack import StepFunctionsStack
 from infra.storage_stack import StorageStack
 from infra.network_stack import NetworkStack
@@ -54,13 +55,28 @@ gold = GoldStack(
     gold_bucket=storage.gold_bucket,
     env=env,
 )
- 
-StepFunctionsStack(
+
+step_functions = StepFunctionsStack(
     app, "StepFunctionsStack",
     bronze_bucket=storage.bronze_bucket,
     hn_silver_lambda=silver.hn_lambda,
     twitter_silver_lambda=silver.twitter_lambda,
     gold_lambda=gold.gold_lambda,
+    env=env,
+)
+
+NotificationsStack(
+    app, "NotificationsStack",
+    monitored_lambdas=[
+        bronze.hn_lambda,
+        bronze.twitter_lambda,
+        silver.hn_lambda,
+        silver.twitter_lambda,
+        gold.gold_lambda,
+    ],
+    state_machine=step_functions.state_machine,
+    vpc=network.vpc,
+    lambda_sg=network.lambda_sg,
     env=env,
 )
  

@@ -171,7 +171,7 @@ def lambda_handler(event, context):
             df=df_users,
             path=f"s3://{SILVER_BUCKET}/users/",
             dataset=True,
-            mode="append",
+            mode="overwrite_partitions",
             partition_cols=["platform"],
         )
 

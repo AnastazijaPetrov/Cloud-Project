@@ -64,7 +64,6 @@ class GoldStack(Stack):
                 "GOLD_BUCKET": gold_bucket.bucket_name,
             },
             vpc=vpc,
-            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
+            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
             security_groups=[lambda_sg],
-            allow_public_subnet=True,
         )
