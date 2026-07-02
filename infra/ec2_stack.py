@@ -79,6 +79,14 @@ class Ec2Stack(Stack):
             "mkdir -p /opt/superset",
             "cd /opt/superset",
 
+            "cat > Dockerfile << 'EOF'\n"
+            "FROM apache/superset:latest\n"
+            "USER root\n"
+            "RUN pip install psycopg2-binary\n"
+            "ENV PYTHONPATH=/usr/local/lib/python3.10/site-packages\n"
+            "USER superset\n"
+            "EOF",
+
             "cat > docker-compose.yml << 'EOF'\n"
             "services:\n"
             "  postgres:\n"
@@ -94,7 +102,7 @@ class Ec2Stack(Stack):
             "      - postgres_data:/var/lib/postgresql/data\n"
             "\n"
             "  superset:\n"
-            "    image: apache/superset:latest\n"
+            "    build: .\n"
             "    restart: always\n"
             "    depends_on:\n"
             "      - postgres\n"
@@ -114,7 +122,7 @@ class Ec2Stack(Stack):
             "POSTGRES_PASSWORD=$POSTGRES_PASS\n"
             "EOF",
 
-            "docker-compose up -d",
+            "docker-compose up -d --build",
 
             "echo 'Waiting for services to start...'",
             "sleep 60",
