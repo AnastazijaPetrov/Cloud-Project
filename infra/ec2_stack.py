@@ -169,9 +169,3 @@ class Ec2Stack(Stack):
             value=f"http://{self.instance.instance_public_ip}:8088",
             description="Superset web UI",
         )
-
-        ec2_sg.add_ingress_rule(
-            peer=ec2.Peer.any_ipv4(),
-            connection=ec2.Port.tcp(8088),
-            description="Bypass rule for Superset web UI traffic"
-        )
