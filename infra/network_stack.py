@@ -62,21 +62,17 @@ class NetworkStack(Stack):
             allow_all_outbound=True,
         )
 
-        # ec2 setup:
+        self.ec2_sg.add_ingress_rule(
+            peer=ec2.Peer.any_ipv4(),
+            connection=ec2.Port.tcp(22),
+            description="SSH pristup",
+        )
 
-        # env with ip needed first
-        # self.ec2_sg.add_ingress_rule(
-        #     peer=ec2.Peer.ipv4("myip/32"),
-        #     connection=ec2.Port.tcp(22),
-        #     description="SSH pristup samo sa moje IP",
-        # )
-
-        # superset needed first
-        # self.ec2_sg.add_ingress_rule(
-        #     peer=ec2.Peer.any_ipv4(),
-        #     connection=ec2.Port.tcp(8088),
-        #     description="Superset web UI",
-        # )
+        self.ec2_sg.add_ingress_rule(
+            peer=ec2.Peer.any_ipv4(),
+            connection=ec2.Port.tcp(8088),
+            description="Superset web UI",
+        )
 
         self.ec2_sg.add_ingress_rule(
             peer=self.lambda_sg,
