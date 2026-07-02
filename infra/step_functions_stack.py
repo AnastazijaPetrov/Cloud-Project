@@ -49,7 +49,7 @@ class StepFunctionsStack(Stack):
         [Gold Lambda]
     """
 
-    def __init__(
+def __init__(
         self,
         scope: Construct,
         construct_id: str,
@@ -57,6 +57,7 @@ class StepFunctionsStack(Stack):
         hn_silver_lambda: _lambda.IFunction,
         twitter_silver_lambda: _lambda.IFunction,
         gold_lambda: _lambda.IFunction,
+        loader_lambda: _lambda.IFunction,
         **kwargs,
     ):
         super().__init__(scope, construct_id, **kwargs)
@@ -147,3 +148,13 @@ class StepFunctionsStack(Stack):
                 role=rule_role,
             )
         )
+
+        load_to_postgres = tasks.LambdaInvoke(
+            self,
+            "LoadToPostgres",
+            lambda_function=loader_lambda,
+            payload=sfn.TaskInput.from_object({}),
+            result_path="$.loader_result",
+        )
+
+        definition = parallel_silver.next(build_gold).next(load_to_postgres)
