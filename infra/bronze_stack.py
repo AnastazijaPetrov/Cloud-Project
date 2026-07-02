@@ -109,7 +109,7 @@ class BronzeStack(Stack):
             rule_name="daily-bronze-ingest",
             schedule=events.Schedule.cron(
                 minute="0",
-                hour="2",
+                hour="11",
                 day="*",
                 month="*",
                 year="*",
