@@ -38,8 +38,7 @@ storage = StorageStack(app, "StorageStack", env=env)
 bronze = BronzeStack(
     app, "BronzeStack",
     vpc=network.vpc,
-    hn_lambda_sg=network.hn_bronze_sg,
-    twitter_lambda_sg=network.lambda_s3_sg,
+    lambda_sg=network.lambda_sg,
     bronze_bucket=storage.bronze_bucket,
     env=env,
 )
@@ -47,7 +46,7 @@ bronze = BronzeStack(
 silver = SilverStack(
     app, "SilverStack",
     vpc=network.vpc,
-    lambda_sg=network.lambda_s3_sg,
+    lambda_sg=network.lambda_sg,
     bronze_bucket=storage.bronze_bucket,
     silver_bucket=storage.silver_bucket,
     env=env,
@@ -56,7 +55,7 @@ silver = SilverStack(
 gold = GoldStack(
     app, "GoldStack",
     vpc=network.vpc,
-    lambda_sg=network.lambda_s3_sg,
+    lambda_sg=network.lambda_sg,
     silver_bucket=storage.silver_bucket,
     gold_bucket=storage.gold_bucket,
     env=env,
@@ -73,7 +72,7 @@ ec2 = Ec2Stack(
 loader = LoaderStack(
     app, "LoaderStack",
     vpc=network.vpc,
-    lambda_sg=network.loader_sg,
+    lambda_sg=network.lambda_sg,
     gold_bucket=storage.gold_bucket,
     postgres_host=ec2.instance.instance_private_ip,
     env=env,
@@ -101,7 +100,7 @@ NotificationsStack(
     ],
     state_machine=step_functions.state_machine,
     vpc=network.vpc,
-    lambda_sg=network.notifications_sg,
+    lambda_sg=network.lambda_sg,
     env=env,
 )
 

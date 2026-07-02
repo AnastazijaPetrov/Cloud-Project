@@ -3,11 +3,10 @@ from aws_cdk import (
     Duration,
     BundlingOptions,
     aws_lambda as _lambda,
+    aws_lambda_destinations as destinations,
     aws_iam as iam,
     aws_sns as sns,
     aws_sns_subscriptions as sns_subs,
-    aws_cloudwatch as cloudwatch,
-    aws_cloudwatch_actions as cw_actions,
     aws_events as events,
     aws_events_targets as targets,
     aws_stepfunctions as sfn,
@@ -15,9 +14,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 
-
 DISCORD_WEBHOOK_PARAM_NAME = "/cloud-project/discord-webhook-url"
-
 
 class NotificationsStack(Stack):
     def __init__(
@@ -37,6 +34,15 @@ class NotificationsStack(Stack):
             topic_name="cloud-project-alerts",
             display_name="Cloud Project Alerts",
         )
+        
+        self.alerts_topic.add_to_resource_policy(iam.PolicyStatement(
+            actions=["sns:Publish"],
+            principals=[
+                iam.ServicePrincipal("lambda.amazonaws.com"),
+                iam.ServicePrincipal("events.amazonaws.com")
+            ],
+            resources=[self.alerts_topic.topic_arn],
+        ))
 
         notification_lambda = _lambda.Function(
             self, "DiscordNotificationLambda",
@@ -56,9 +62,6 @@ class NotificationsStack(Stack):
                 "DISCORD_WEBHOOK_PARAM": DISCORD_WEBHOOK_PARAM_NAME,
                 "AWS_REGION_NAME": self.region,
             },
-            vpc=vpc,
-            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
-            security_groups=[lambda_sg],
         )
 
         notification_lambda.add_to_role_policy(iam.PolicyStatement(
@@ -86,20 +89,10 @@ class NotificationsStack(Stack):
         )
 
         for fn in monitored_lambdas:
-            alarm = cloudwatch.Alarm(
-                self, f"LambdaErrorAlarm{fn.node.id}",
-                alarm_name=f"{fn.function_name}-errors",
-                alarm_description=f"Triggers when {fn.function_name} has errors",
-                metric=fn.metric_errors(
-                    period=Duration.minutes(5),
-                    statistic="Sum",
-                ),
-                threshold=1,
-                evaluation_periods=1,
-                comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
-                treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+            fn.configure_async_invoke(
+                retry_attempts=0,
+                on_failure=destinations.SnsDestination(self.alerts_topic)
             )
-            alarm.add_alarm_action(cw_actions.SnsAction(self.alerts_topic))
 
         step_function_failure_rule = events.Rule(
             self, "StepFunctionFailureRule",
@@ -109,11 +102,7 @@ class NotificationsStack(Stack):
                 detail_type=["Step Functions Execution Status Change"],
                 detail={
                     "status": ["FAILED", "TIMED_OUT", "ABORTED"],
-                    "stateMachineArn": [state_machine.state_machine_arn],
                 },
             ),
         )
-
-        step_function_failure_rule.add_target(
-            targets.SnsTopic(self.alerts_topic)
-        )
+        step_function_failure_rule.add_target(targets.SnsTopic(self.alerts_topic))
