@@ -88,9 +88,6 @@ def fetch_who_is_hiring_comments(story_id: int, date_from: int, date_to: int) ->
 
 
 def lambda_handler(event, context):
-    if event.get("simulate_failure"):
-        raise Exception("Simulated failure for Discord notification test")
-
     print("Fetching HackerNews data via Algolia API...")
 
     yesterday = datetime.now(timezone.utc) - timedelta(days=1)
