@@ -13,43 +13,8 @@ from constructs import Construct
 
 
 class StepFunctionsStack(Stack):
-    """
-    Orkestracioni stack koji koordiniše Silver → Gold pipeline.
 
-    Problem sa prethodnim pristupom (dva nezavisna EventBridge okidača):
-    - HN normalizacija završi → okine gold lambdu → gold se gradi BEZ Twitter korisnika
-    - Twitter normalizacija završi → okine gold lambdu ponovo → sada ima Twitter podatke
-    - Rezultat: gold lambda se pokreće 2x, prvi put nepotpuno
-
-    Rešenje sa Step Functions:
-    - Jedan EventBridge okidač na bronze bucket (bilo koji novi fajl)
-    - State machine paralelno pokreće HN i Twitter silver lambde
-    - Gold lambda se pokreće TEK nakon što su OBE silver lambde uspešno završile
-    - Ako bilo koja silver lambda padne → gold se NE pokreće → Discord notifikacija
-
-    Dijagram toka:
-        Bronze S3 event
-             │
-             ▼
-        [EventBridge Rule]
-             │
-             ▼
-        [State Machine Start]
-             │
-             ▼
-        ┌────┴────┐
-        │ Parallel │  ← Paralelno izvršavanje
-        └────┬────┘
-       ┌─────┴─────┐
-       ▼           ▼
-    [HN Silver] [Twitter Silver]
-       └─────┬─────┘
-             │ (oba uspešna)
-             ▼
-        [Gold Lambda]
-    """
-
-def __init__(
+    def __init__(
         self,
         scope: Construct,
         construct_id: str,
