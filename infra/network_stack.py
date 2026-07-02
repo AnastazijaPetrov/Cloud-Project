@@ -44,38 +44,76 @@ class NetworkStack(Stack):
             service=ec2.GatewayVpcEndpointAwsService.S3,
         )
 
-        # lambda security groups
-        self.lambda_sg = ec2.SecurityGroup(
-            self, "LambdaSecurityGroup",
+        self.hn_bronze_sg = ec2.SecurityGroup(
+            self, "HnBronzeSg",
             vpc=self.vpc,
-            security_group_name="lambda-sg",
-            description="Security group za Lambda funkcije",
-            allow_all_outbound=True,
+            security_group_name="hn-bronze-sg",
+            description="HN bronze Lambda (HN API and S3 access)",
+            allow_all_outbound=False,
         )
 
-        # ec2 security groups
+        self.lambda_s3_sg = ec2.SecurityGroup(
+            self, "LambdaS3Sg",
+            vpc=self.vpc,
+            security_group_name="lambda-s3-sg",
+            description="Lambdas that need S3 access only",
+            allow_all_outbound=False,
+        )
+
+        self.notifications_sg = ec2.SecurityGroup(
+            self, "NotificationsSg",
+            vpc=self.vpc,
+            security_group_name="notifications-sg",
+            description="Notifications Lambda with Discord and SSM access",
+            allow_all_outbound=False,
+        )
+
+        self.loader_sg = ec2.SecurityGroup(
+            self, "LoaderSg",
+            vpc=self.vpc,
+            security_group_name="loader-sg",
+            description="Loader Lambda - PostgreSQL access",
+            allow_all_outbound=False,
+        )
+
         self.ec2_sg = ec2.SecurityGroup(
             self, "Ec2SecurityGroup",
             vpc=self.vpc,
             security_group_name="ec2-sg",
-            description="Security group za EC2 (Superset + PostgreSQL)",
+            description="EC2 (Superset + PostgreSQL)",
             allow_all_outbound=True,
+        )
+
+        self.hn_bronze_sg.add_egress_rule(
+            peer=ec2.Peer.any_ipv4(),
+            connection=ec2.Port.tcp(443),
+            description="HN API and S3",
+        )
+
+        self.notifications_sg.add_egress_rule(
+            peer=ec2.Peer.any_ipv4(),
+            connection=ec2.Port.tcp(443),
+            description="HTTPS Discord and SSM",
+        )
+
+        self.loader_sg.add_egress_rule(
+            peer=self.ec2_sg,
+            connection=ec2.Port.tcp(5432),
+            description="PostgreSQL na EC2",
         )
 
         self.ec2_sg.add_ingress_rule(
             peer=ec2.Peer.any_ipv4(),
             connection=ec2.Port.tcp(22),
-            description="SSH pristup",
+            description="SSH access",
         )
-
         self.ec2_sg.add_ingress_rule(
             peer=ec2.Peer.any_ipv4(),
             connection=ec2.Port.tcp(8088),
             description="Superset web UI",
         )
-
         self.ec2_sg.add_ingress_rule(
-            peer=self.lambda_sg,
+            peer=self.loader_sg,
             connection=ec2.Port.tcp(5432),
-            description="PostgreSQL pristup samo od Lambda funkcija",
+            description="PostgreSQL accessible only by loader lambda",
         )

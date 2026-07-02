@@ -19,7 +19,8 @@ class BronzeStack(Stack):
         scope: Construct,
         construct_id: str,
         vpc: ec2.IVpc,
-        lambda_sg: ec2.ISecurityGroup,
+        hn_lambda_sg: ec2.ISecurityGroup,
+        twitter_lambda_sg: ec2.ISecurityGroup,
         bronze_bucket: s3.IBucket,
         **kwargs,
     ) -> None:
@@ -61,7 +62,7 @@ class BronzeStack(Stack):
             role=hn_role,
             vpc=vpc,
             vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
-            security_groups=[lambda_sg],
+            security_groups=[hn_lambda_sg],
         )
 
         # twitter lambda
@@ -100,7 +101,7 @@ class BronzeStack(Stack):
             role=twitter_role,
             vpc=vpc,
             vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
-            security_groups=[lambda_sg],
+            security_groups=[twitter_lambda_sg],
         )
 
         # Event bridge cron at 02:00 utc used by both lambdas
