@@ -2,7 +2,6 @@ import os
 import json
 import pandas as pd
 import awswrangler as wr
-from datetime import datetime, timezone
 from datetime import datetime, timedelta, timezone
 
 yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date()

@@ -10,19 +10,32 @@ class NetworkStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # vpc with 2 public subnets in 2 different az
+        nat_provider = ec2.NatProvider.instance_v2(
+            instance_type=ec2.InstanceType.of(
+                ec2.InstanceClass.T3,
+                ec2.InstanceSize.MICRO,
+            ),
+        )
+
+        # vpc with public and private subnets in 2 different az
         self.vpc = ec2.Vpc(
             self, "DataLakehouseVpc",
             vpc_name="data-lakehouse-vpc",
             ip_addresses=ec2.IpAddresses.cidr("10.0.0.0/16"),
             max_azs=2,
-            nat_gateways=0,
+            nat_gateway_provider=nat_provider,
+            nat_gateways=1,
             subnet_configuration=[
                 ec2.SubnetConfiguration(
                     name="public",
                     subnet_type=ec2.SubnetType.PUBLIC,
                     cidr_mask=24,
-                )
+                ),
+                ec2.SubnetConfiguration(
+                    name="private",
+                    subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS,
+                    cidr_mask=24,
+                ),
             ],
         )
 
@@ -49,21 +62,17 @@ class NetworkStack(Stack):
             allow_all_outbound=True,
         )
 
-        # ec2 setup:
+        self.ec2_sg.add_ingress_rule(
+            peer=ec2.Peer.any_ipv4(),
+            connection=ec2.Port.tcp(22),
+            description="SSH pristup",
+        )
 
-        # env with ip needed first
-        # self.ec2_sg.add_ingress_rule(
-        #     peer=ec2.Peer.ipv4("myip/32"),
-        #     connection=ec2.Port.tcp(22),
-        #     description="SSH pristup samo sa moje IP",
-        # )
-
-        # superset needed first
-        # self.ec2_sg.add_ingress_rule(
-        #     peer=ec2.Peer.any_ipv4(),
-        #     connection=ec2.Port.tcp(8088),
-        #     description="Superset web UI",
-        # )
+        self.ec2_sg.add_ingress_rule(
+            peer=ec2.Peer.any_ipv4(),
+            connection=ec2.Port.tcp(8088),
+            description="Superset web UI",
+        )
 
         self.ec2_sg.add_ingress_rule(
             peer=self.lambda_sg,

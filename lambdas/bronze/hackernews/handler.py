@@ -14,7 +14,7 @@ POST_TYPES = ["story", "ask_hn", "show_hn", "poll", "comment"]
 # ID aktuelnog "Ask HN: Who is Hiring?" threada.
 # Objavljuje se prvi ponedeljak svakog meseca — ovaj ID treba
 # da se azurira mesecno. Jun 2026: 48357725
-WHO_IS_HIRING_ID = 48357725
+WHO_IS_HIRING_ID = 48747976
 
 
 def fetch_by_type(tag: str, date_from: int, date_to: int) -> list:
