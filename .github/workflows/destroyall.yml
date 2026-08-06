@@ -38,4 +38,4 @@ jobs:
         run: aws sts get-caller-identity
 
       - name: Destroy CDK stacks
-        run: cdk destroy --all --require-approval never
+        run: cdk destroy --all --force
